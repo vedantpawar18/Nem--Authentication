@@ -2,6 +2,7 @@
 const express= require("express");
 const connection=require("./Config/db")
 var jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 const app=express();
 app.use(express.json())
@@ -12,22 +13,31 @@ app.get("/", (req,res)=>[
 ]);
 
 app.post("/signup", async(req,res)=>{
-    const user= new UserModel(req.body)
+    let {email, password,age}= req.body;
+    bcrypt.hash(password, 6).then(async function(hash){
+    const user= new UserModel({email, password:hash,age})
     await user.save()
     res.send("sign up successful")
+    })
+    .catch(()=>{
+        res.send("something went wrong")
+    })
+    
 })
 
 app.post("/login",async(req,res)=>{
-    const isValid=await UserModel.findOne(req.body)
-    if(isValid)
-    {
-        var token = jwt.sign({ foo: 'bar' }, 'secret',{ expiresIn: "1h" });
-        res.send({"msg":"login successful", "token":token})
-    }
-    else{
-        res.send("Login failed, invalid credentials")
-    }
-    
+    let {email, password}= req.body;
+    let user= await UserModel.findOne({email})
+    let hash = user.password;
+    bcrypt.compare(password, hash, function(err,result){
+        if(result){
+            var token = jwt.sign({ email:email }, 'secret',{ expiresIn: "1h" });
+            res.send({"msg":"login successful", "token":token})
+        }
+        else{
+            res.send("Login Failed, invalid creds")
+        }
+    })
 })
 
 app.get("/dashboard", (req,res)=>{
@@ -38,7 +48,7 @@ app.get("/dashboard", (req,res)=>{
             res.send("please login")
         }
         else{
-            res.send("Important data")
+            res.send("Important data" + decoded.email)
         }
       });
 })
